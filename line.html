@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<script type="text/javascript" src="lib/paper-full.js"></script>
+	<script type="text/javascript" src="lib/traer.js"></script>
+	<script type="text/paperscript"  canvas="paper_canvas">
+	var num_points = 7;
+	var seg_len = getSegmentLength();
+	var spring_strength = 0.8;
+	var spring_damping = 0.6; 
+	var max_force = 10;
+	var FRAME_DELAY = 10;
+
+	var canvas = document.getElementById('paper_canvas');
+	var ctx = canvas.getContext('2d');
+	ctx.fillStyle = 'black';
+
+	var restDrag = 1.2;
+	var physics = new ParticleSystem(+0.34, -3, 0, restDrag);
+
+	var cat_group;
+	var paths = [];
+	var springs = [];
+	var support1_points = [];
+	var support2_points = [];
+	var particles = [];
+	
+	var firstRun = false;
+	var left_clicked = false;
+	var mouse_pos = view.center / 2;
+	var targetMousePos = new Point(view.size.width/2, view.size.height-seg_len);
+
+	var pathBody = new Path();
+
+	pathBody.style = {
+		strokeColor : "black",
+		strokeWidth : 10,
+		strokeCap : "round"
+	};
+	paths.push(pathBody);
+
+	cat_group = new Group(paths);
+
+	buildBody();
+	//buildHead();
+
+	setInterval(function() {
+  		//physics.gravity.x = Math.sin(Date.now()/4000)*0.5
+  		//physics.gravity.y =  Math.sin(Date.now()/6000)*0.5 - 3
+
+  		setPositions();
+  		physics.tick(1.0);
+	}, 1000/60);
+/*
+	var mouse_pos = view.center / 2;
+	var top_pt = new Point(300, 300);
+	var bottom_pt = new Point(300, 600);
+	var handle_out = new Point(-150, 20);
+	var handle_in = new Point(-150, -20);
+	var seg1 = new Segment(top_pt, null, handle_out);
+	var seg2 = new Segment(bottom_pt, handle_in, null);
+
+	var path = new Path(seg1, seg2);
+	path.strokeColor = "black";
+	path.strokeWidth = 10;
+	function onMouseMove(event) {
+			// Whenever the user moves the mouse, move the path
+			 // to that position:
+			//mouse_pos = event.point;
+	}
+
+	function onMouseDrag(event){
+		//path.add(event.point);
+		path.segments[0].handleOut += event.delta
+	}
+	function onFrame(event){
+		for(var i = 0; i < path.segments.length; i ++){
+			//path.segments[i].handleIn.x += 3;
+		}
+	}
+	*/
+	function onFrame(event){
+		updatePaths();
+		pathBody.smooth();
+  		firstRun = false;
+	}
+
+	function onMouseDown(event){
+		left_clicked = true;
+	}
+
+	function onMouseUp(event){
+		//left_clicked = false;
+	}
+	function onMouseMove(event){
+		//event.delta
+		//if(!left_clicked) return;
+		//mouse_pos = event.point;
+		var a = Math.atan2(event.point.y - view.size.height, event.point.x - view.size.width/2);
+		targetMousePos.x = view.size.width/2 + Math.cos(a) * seg_len*3;
+  		targetMousePos.y = view.size.height + Math.sin(a) * seg_len;
+  		/*
+		for(var i = 1; i < particles.length; i++){
+			var old_x = particles[i].position.x;
+			var old_y = particles[i].position.y;
+
+			var angle = Math.atan2(old_y - mouse_pos.y, old_x - mouse_pos.x);
+			
+			var offset_x = Math.cos(angle) * forceMagnitude(particles[i].force); 
+			var offset_y = Math.sin(angle) * forceMagnitude(particles[i].force);
+			particles[i].position.set(old_x + offset_x, old_y + offset_y, 0);
+
+		}
+		*/
+		
+	}
+	//TODO
+	function onResize(event){
+		document.getElementById('paper_canvas').height++;
+		  document.getElementById('paper_canvas').width++;
+		  segmentLength = getSegmentLength();
+		  particles[0].position.x = view.size.width/2;
+		  particles[0].position.y = view.size.height + segmentLength;
+		  targetMousePos.x = view.size.width/2;
+		  targetMousePos.y = view.size.height - segmentLength;
+		  for (var i = 0; i < springs.length; i++) {
+		    springs[i].length = segmentLength;
+		  }
+	}
+	function buildBody(){
+		
+		for (var i = 0; i < num_points; i++){
+			var x = view.size.width / 2;
+    			var y = view.size.height - (i-1)*seg_len;
+			//make particle : mass, x, y, z 
+			
+			var particle = physics.makeParticle(2.5, x, y, 0);
+			
+			var support1 = physics.makeParticle(0.3, x, y - seg_len, 0);
+			var support2 = physics.makeParticle(0.3, x, y + seg_len, 0);
+			//make spring bet support1 and support2
+
+			if( i > 0){
+				var prev_support = support1_points[i-1];
+				var prev_particle = particles[i-1];
+				
+				physics.makeSpring(particle, prev_support, 0.02, 0.48, 0);
+				physics.makeSpring(prev_particle, support2, 0.02, 0.7, 0);
+
+				springs.push(physics.makeSpring(particle, prev_particle, 0.1, 0.1, seg_len));
+				
+			}//end of if
+
+			if (i < 2 /*|| i == num_points - 1*/) {
+      				particle.makeFixed();
+    			}
+    			console.log("x: " + particle.position.x + ", y: " + particle.position.y);
+			support1.makeFixed();
+			support2.makeFixed();
+			
+			var point = new Point();
+    			pathBody.add(point);
+
+			particles.push(particle);
+			support1_points.push(support1);
+			support2_points.push(support2);
+			
+		}
+		//end of for
+	}
+	function buildHead(){
+		//TODO
+		var start_x = particles[particles.length - 1].position.x;
+		var start_y = particles[particles.length - 1].position.y;
+
+		var start_pt = new Point(start_x, start_y);
+
+		console.log(start_x + ", " + start_y);
+
+		var handle_out = new Point( -20,  -20);
+		
+		var p2 = new Point(start_x - 40, start_y - 20);
+		var handle_in = new Point(20, 10);
+
+		var seg1 = new Segment(start_pt, null, handle_out);
+		var seg2 = new Segment(p2, handle_in, null);
+
+		pathBody.add(seg1);
+		pathBody.add(seg2);
+
+	}
+	/*
+	var _draw = view.draw;
+	view.draw = function() {
+  		_draw.call(this);
+  		//if (firstRun) return;
+  		onDraw(this._context);
+	}
+*/	
+	function forceMagnitude(force){
+		return Math.sqrt(force.lengthSquared);
+	}
+	function getSegmentLength() {
+  		return view.size.height/num_points * 0.7;
+	}
+	function onDraw(ctx) {
+
+	}
+	function setPositions(){
+		e = 0.66;
+		mouse_pos.x += (targetMousePos.x - mouse_pos.x) * e;
+  		mouse_pos.y += (targetMousePos.y - mouse_pos.y) * e;
+
+  		particles[1].position.x = mouse_pos.x;
+  		particles[1].position.y = mouse_pos.y;
+
+		for(var i = 1; i < num_points; i++){
+			var prev_particle = particles[i-1];
+			var particle = particles[i];
+
+			var force = forceMagnitude(particle.force);
+			//angle between particle and previous particle
+			var angle = Math.atan2(particle.position.y - prev_particle.position.y, particle.position.x - prev_particle.position.x);
+			//set support positions
+			support1_points[i].position.x = prev_particle.position.x + Math.cos(angle - i*0.015) * seg_len;
+			support1_points[i].position.y = prev_particle.position.y + Math.sin(angle  - i*0.015) * seg_len;
+
+			support2_points[i].position.x = particle.position.x - Math.cos(angle) * seg_len;
+			support2_points[i].position.y = particle.position.y - Math.sin(angle) * seg_len;
+
+			if(force > max_force){
+				particle.force.scale(force / max_force);
+			}
+			pathBody.segments[i].angle = angle;
+		}
+	}
+	function updatePaths(){
+
+		for (var i = 0; i < num_points; i++) {
+
+			var curParticle = particles[i];
+			var prevParticle = particles[i-1];
+			var angle = pathBody.segments[i].angle + Math.PI/2;
+
+			pathBody.segments[i].point.x = curParticle.position.x;
+			pathBody.segments[i].point.y = curParticle.position.y;
+
+		}
+	}
+	</script>
+</head>
+<body>
+	<canvas id="paper_canvas" resize>
+	</canvas>
+</body>
+</html>
