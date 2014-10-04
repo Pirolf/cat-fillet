@@ -6,8 +6,6 @@
 	<script type="text/paperscript"  canvas="paper_canvas">
 	var num_points = 6;
 	var seg_len = getSegmentLength();
-	var spring_strength = 0.8;
-	var spring_damping = 0.6; 
 	var max_force = 10;
 	var FRAME_DELAY = 10;
 
@@ -26,7 +24,8 @@
 	var particles = [];
 	var particles_head = [];
 	var eye_left, eye_right;
-	var mouth, prev_mouth_angle;
+	var mouth;
+	var ear_left, ear_right;
 
 	var firstRun = false;
 	var left_clicked = false;
@@ -36,6 +35,8 @@
 	var pathBody = new Path();
 	var pathHead = new Path();
 	var thickness = 150;
+	
+
 	pathBody.style = {
 		strokeColor : "#5F566B",
 		strokeWidth : thickness,
@@ -43,11 +44,18 @@
 	};
 	paths.push(pathBody);
 
+	var eye_from_center = thickness / 5;
+	var eye_radius = thickness / 10;
+
 	cat_group = new Group(paths);
 
+	
 	buildBody();
 	buildEyes();
 	buildMouth();
+	ear_left = initEars();
+	ear_right = ear_left;
+
 	setInterval(function() {
   		physics.gravity.x = Math.sin(Date.now()/4000)*0.5
   		physics.gravity.y =  Math.sin(Date.now()/6000)*0.5 - 3
@@ -62,6 +70,7 @@
 		updatePaths();
 		buildEyes();
 		buildMouth();
+		buildEars();
 		pathBody.smooth();
   		firstRun = false;
 	}
@@ -98,6 +107,60 @@
 		    springs[i].length = segmentLength;
 		  }
 	}
+	function to_rad(ang){
+		return ang * Math.PI / 180;
+	}
+	function to_ang(rad){
+		return rad * 180 / Math.PI;
+	}
+	function initEars(){
+		var ear = new Path();
+		//ear.strokeColor = '#403533';
+		ear.strokeColor = pathBody.strokeColor;
+		ear.fillColor = '#D55866';
+		ear.add(new Point(40, 90));
+		ear.add(new Point(60, 35));
+		ear.add(new Point(80, 90));
+
+		ear.closed = true;
+		pathBody.addChild(ear);
+		ear.smooth();
+		ear.strokeWidth = 12;
+		ear.translate(new Point(500, 500));
+		ear.scale(1.2);
+		ear.blendMode = "destination-over";
+		return ear;
+	}
+	function buildEars(){
+		var last_particle = particles[num_points-1];
+		var last_seg = pathBody.segments[num_points-1];
+		var body_rad = last_seg.angle + Math.PI / 2; //radians
+		var ear_angle = 45; //relative to body
+		var left_ang = ear_angle + to_ang(body_rad);
+		var right_ang = to_ang( to_rad(ear_angle) +body_rad - Math.PI/2);
+
+		var le_x = last_particle.position.x - pathBody.strokeWidth / 2 * Math.cos(to_rad(left_ang));
+		var le_y = last_particle.position.y - pathBody.strokeWidth / 2 * Math.sin(to_rad(left_ang));
+
+		var re_x = last_particle.position.x + pathBody.strokeWidth / 2 * Math.cos(to_rad(right_ang));
+		var re_y = last_particle.position.y + pathBody.strokeWidth / 2 * Math.sin(to_rad(right_ang));
+
+		
+
+		var left_ear_mid = new Point(le_x, le_y);
+		var right_ear_mid = new Point(re_x, re_y);
+
+		ear_left.remove();
+		ear_left = initEars();
+		ear_right.remove();
+		ear_right = initEars();
+
+		ear_left.translate (left_ear_mid  - ear_left.position);
+		ear_left.rotate(-30 + to_ang(body_rad));
+
+		ear_right.translate (right_ear_mid  - ear_right.position);
+		ear_right.rotate(30 + to_ang(body_rad));
+	}
 	function buildMouth(){
 		var mouth_half_width = 40;
 		var segment = pathBody.segments[num_points - 1];
@@ -121,6 +184,9 @@
 		}
 		mouth = new Path();
 		mouth.add(seg1, seg2, seg3, seg4);
+
+		//mouth.scale(pathBody.strokeWidth / 150);
+
 		mouth.strokeWidth = 5;
 		mouth.strokeColor = "#D49F90";
 		mouth.strokeCap = "round";
@@ -132,33 +198,28 @@
 			var r = angle;
 			if (r > 0 || r < 0){
 				mouth.rotate((r +Math.PI / 2)* 180 / Math.PI);
-				console.log(r);
 			}
 		}
-		//console.log(angle);
 	}
 	function buildEyes(){
-		//get normal
-		//var angle = Math.atan2(tan.x- particles[num_points-1].position.x, tan.y-particles[num_points-1].position.y);
 		var segment = pathBody.segments[num_points - 1];
 		var angle = segment.angle + Math.PI/2;
-		var left_x = segment.point.x - Math.cos(angle) * 30;
-		var left_y = segment.point.y - Math.sin(angle) * 30;
+		var left_x = segment.point.x - Math.cos(angle) * eye_from_center ;
+		var left_y = segment.point.y - Math.sin(angle) * eye_from_center ;
 
-		var right_x = segment.point.x + Math.cos(angle) * 30;
-		var right_y =  segment.point.y + Math.sin(angle) * 30;
-		if(eye_left == null){
-			eye_left = new Shape.Circle(new Point(left_x, left_y), 15);
-			eye_right = new Shape.Circle(new Point(right_x, right_y), 15);	
+		var right_x = segment.point.x + Math.cos(angle) * eye_from_center ;
+		var right_y =  segment.point.y + Math.sin(angle) * eye_from_center ;
+		if(!eye_left){
+			eye_left = new Shape.Circle(new Point(left_x, left_y), eye_radius);
+			eye_right = new Shape.Circle(new Point(right_x, right_y), eye_radius);	
 		}else{
 			
 			eye_left.remove();
 			eye_right.remove();
-			eye_left = new Shape.Circle(new Point(left_x, left_y), 15);
-			eye_right = new Shape.Circle(new Point(right_x, right_y), 15);
+			eye_left = new Shape.Circle(new Point(left_x, left_y), eye_radius);
+			eye_right = new Shape.Circle(new Point(right_x, right_y), eye_radius);
 		}
 		
-		//console.log(tan.x + ", " + tan.y + "; " + eye_right.x + ", " + eye_right.y);
 		eye_left.strokeColor = '#939E98';
 		eye_left.fillColor = '#97C4B3';
 		eye_right.strokeColor = '#939E98';
@@ -193,7 +254,7 @@
 			if (i < 2 ) {
       				particle.makeFixed();
     			}
-    			//console.log("x: " + particle.position.x + ", y: " + particle.position.y);
+
 			support1.makeFixed();
 			support2.makeFixed();
 			
@@ -207,22 +268,12 @@
 		}
 		//end of for
 	}
-	/*
-	var _draw = view.draw;
-	view.draw = function() {
-  		_draw.call(this);
-  		//if (firstRun) return;
-  		onDraw(this._context);
-	}
-*/	
+
 	function forceMagnitude(force){
 		return Math.sqrt(force.lengthSquared);
 	}
 	function getSegmentLength() {
   		return view.size.height/num_points * 0.7;
-	}
-	function onDraw(ctx) {
-
 	}
 	function setPositions(){
 		//e = 0.66;
@@ -265,8 +316,6 @@
 			pathBody.segments[i].point.y = curParticle.position.y;
 
 		}
-		//console.log(pathBody.segments[num_points-1].curve.getTangentAt(0).x + 
-		//	", " + pathBody.segments[num_points-1].curve.getTangentAt(0).y);
 	}
 	</script>
 </head>
