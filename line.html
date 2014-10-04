@@ -24,17 +24,20 @@
 	var support1_points = [];
 	var support2_points = [];
 	var particles = [];
-	
+	var particles_head = [];
+	var eye_left, eye_right;
+
 	var firstRun = false;
 	var left_clicked = false;
 	var mouse_pos = view.center / 2;
 	var targetMousePos = new Point(view.size.width/2, view.size.height-seg_len);
 
 	var pathBody = new Path();
-
+	var pathHead = new Path();
+	var thickness = 150;
 	pathBody.style = {
-		strokeColor : "black",
-		strokeWidth : 10,
+		strokeColor : "#5F566B",
+		strokeWidth : thickness,
 		strokeCap : "round"
 	};
 	paths.push(pathBody);
@@ -42,13 +45,14 @@
 	cat_group = new Group(paths);
 
 	buildBody();
-	//buildHead();
-
+	buildEyes();
 	setInterval(function() {
-  		//physics.gravity.x = Math.sin(Date.now()/4000)*0.5
-  		//physics.gravity.y =  Math.sin(Date.now()/6000)*0.5 - 3
+  		physics.gravity.x = Math.sin(Date.now()/4000)*0.5
+  		physics.gravity.y =  Math.sin(Date.now()/6000)*0.5 - 3
 
   		setPositions();
+		
+  		//setHeadPositions();
   		physics.tick(1.0);
 	}, 1000/60);
 /*
@@ -81,6 +85,7 @@
 	*/
 	function onFrame(event){
 		updatePaths();
+		buildEyes();
 		pathBody.smooth();
   		firstRun = false;
 	}
@@ -88,7 +93,10 @@
 	function onMouseDown(event){
 		left_clicked = true;
 	}
-
+	function onMouseDrag(event){
+		//path.add(event.point);
+	
+	}
 	function onMouseUp(event){
 		//left_clicked = false;
 	}
@@ -127,6 +135,34 @@
 		    springs[i].length = segmentLength;
 		  }
 	}
+	function buildEyes(){
+		//get normal
+		//var angle = Math.atan2(tan.x- particles[num_points-1].position.x, tan.y-particles[num_points-1].position.y);
+		var segment = pathBody.segments[num_points - 1];
+		var angle = segment.angle + Math.PI/2;
+		var left_x = segment.point.x - Math.cos(angle) * 30;
+		var left_y = segment.point.y - Math.sin(angle) * 30;
+
+		var right_x = segment.point.x + Math.cos(angle) * 30;
+		var right_y =  segment.point.y + Math.sin(angle) * 30;
+		if(eye_left == null){
+			eye_left = new Shape.Circle(new Point(left_x, left_y), 15);
+			eye_right = new Shape.Circle(new Point(right_x, right_y), 15);	
+		}else{
+			
+			eye_left.remove();
+			eye_right.remove();
+			eye_left = new Shape.Circle(new Point(left_x, left_y), 15);
+			eye_right = new Shape.Circle(new Point(right_x, right_y), 15);
+		}
+		
+		//console.log(tan.x + ", " + tan.y + "; " + eye_right.x + ", " + eye_right.y);
+		eye_left.strokeColor = '#939E98';
+		eye_left.fillColor = '#97C4B3';
+		eye_right.strokeColor = '#939E98';
+		eye_right.fillColor = '#97C4B3';
+
+	}
 	function buildBody(){
 		
 		for (var i = 0; i < num_points; i++){
@@ -151,10 +187,10 @@
 				
 			}//end of if
 
-			if (i < 2 /*|| i == num_points - 1*/) {
+			if (i < 2 ) {
       				particle.makeFixed();
     			}
-    			console.log("x: " + particle.position.x + ", y: " + particle.position.y);
+    			//console.log("x: " + particle.position.x + ", y: " + particle.position.y);
 			support1.makeFixed();
 			support2.makeFixed();
 			
@@ -167,27 +203,6 @@
 			
 		}
 		//end of for
-	}
-	function buildHead(){
-		//TODO
-		var start_x = particles[particles.length - 1].position.x;
-		var start_y = particles[particles.length - 1].position.y;
-
-		var start_pt = new Point(start_x, start_y);
-
-		console.log(start_x + ", " + start_y);
-
-		var handle_out = new Point( -20,  -20);
-		
-		var p2 = new Point(start_x - 40, start_y - 20);
-		var handle_in = new Point(20, 10);
-
-		var seg1 = new Segment(start_pt, null, handle_out);
-		var seg2 = new Segment(p2, handle_in, null);
-
-		pathBody.add(seg1);
-		pathBody.add(seg2);
-
 	}
 	/*
 	var _draw = view.draw;
@@ -246,6 +261,8 @@
 			pathBody.segments[i].point.y = curParticle.position.y;
 
 		}
+		//console.log(pathBody.segments[num_points-1].curve.getTangentAt(0).x + 
+		//	", " + pathBody.segments[num_points-1].curve.getTangentAt(0).y);
 	}
 	</script>
 </head>
