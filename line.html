@@ -4,7 +4,7 @@
 	<script type="text/javascript" src="lib/paper-full.js"></script>
 	<script type="text/javascript" src="lib/traer.js"></script>
 	<script type="text/paperscript"  canvas="paper_canvas">
-	var num_points = 7;
+	var num_points = 6;
 	var seg_len = getSegmentLength();
 	var spring_strength = 0.8;
 	var spring_damping = 0.6; 
@@ -26,6 +26,7 @@
 	var particles = [];
 	var particles_head = [];
 	var eye_left, eye_right;
+	var mouth, prev_mouth_angle;
 
 	var firstRun = false;
 	var left_clicked = false;
@@ -38,7 +39,7 @@
 	pathBody.style = {
 		strokeColor : "#5F566B",
 		strokeWidth : thickness,
-		strokeCap : "round"
+		strokeCap : "round",
 	};
 	paths.push(pathBody);
 
@@ -46,46 +47,21 @@
 
 	buildBody();
 	buildEyes();
+	buildMouth();
 	setInterval(function() {
   		physics.gravity.x = Math.sin(Date.now()/4000)*0.5
   		physics.gravity.y =  Math.sin(Date.now()/6000)*0.5 - 3
-
+  		
   		setPositions();
 		
   		//setHeadPositions();
   		physics.tick(1.0);
 	}, 1000/60);
-/*
-	var mouse_pos = view.center / 2;
-	var top_pt = new Point(300, 300);
-	var bottom_pt = new Point(300, 600);
-	var handle_out = new Point(-150, 20);
-	var handle_in = new Point(-150, -20);
-	var seg1 = new Segment(top_pt, null, handle_out);
-	var seg2 = new Segment(bottom_pt, handle_in, null);
 
-	var path = new Path(seg1, seg2);
-	path.strokeColor = "black";
-	path.strokeWidth = 10;
-	function onMouseMove(event) {
-			// Whenever the user moves the mouse, move the path
-			 // to that position:
-			//mouse_pos = event.point;
-	}
-
-	function onMouseDrag(event){
-		//path.add(event.point);
-		path.segments[0].handleOut += event.delta
-	}
-	function onFrame(event){
-		for(var i = 0; i < path.segments.length; i ++){
-			//path.segments[i].handleIn.x += 3;
-		}
-	}
-	*/
 	function onFrame(event){
 		updatePaths();
 		buildEyes();
+		buildMouth();
 		pathBody.smooth();
   		firstRun = false;
 	}
@@ -107,19 +83,6 @@
 		var a = Math.atan2(event.point.y - view.size.height, event.point.x - view.size.width/2);
 		targetMousePos.x = view.size.width/2 + Math.cos(a) * seg_len*3;
   		targetMousePos.y = view.size.height + Math.sin(a) * seg_len;
-  		/*
-		for(var i = 1; i < particles.length; i++){
-			var old_x = particles[i].position.x;
-			var old_y = particles[i].position.y;
-
-			var angle = Math.atan2(old_y - mouse_pos.y, old_x - mouse_pos.x);
-			
-			var offset_x = Math.cos(angle) * forceMagnitude(particles[i].force); 
-			var offset_y = Math.sin(angle) * forceMagnitude(particles[i].force);
-			particles[i].position.set(old_x + offset_x, old_y + offset_y, 0);
-
-		}
-		*/
 		
 	}
 	//TODO
@@ -134,6 +97,45 @@
 		  for (var i = 0; i < springs.length; i++) {
 		    springs[i].length = segmentLength;
 		  }
+	}
+	function buildMouth(){
+		var mouth_half_width = 40;
+		var segment = pathBody.segments[num_points - 1];
+		var angle = segment.angle ;
+
+		var p1 = new Point(200, 200);
+		var p2 = new Point(242, 205);
+		var p3 = new Point(284, 200);
+
+		var handle_out1 = new Point(-7, 42);
+		var handle_in1 = new Point(0,42);
+		var handle_out2 = new Point(0,42);
+		var handle_in2 = new Point(7,42);
+		var seg1 = new Segment(p1, null, handle_out1);
+		var seg2 = new Segment(p2, handle_in1, null);
+		var seg3 = new Segment(p2, null, handle_out2);
+		var seg4 = new Segment(p3, handle_in2, null);
+
+		if(mouth){
+			mouth.remove();
+		}
+		mouth = new Path();
+		mouth.add(seg1, seg2, seg3, seg4);
+		mouth.strokeWidth = 5;
+		mouth.strokeColor = "#D49F90";
+		mouth.strokeCap = "round";
+
+		if(mouth){
+			var offset = new Point(-Math.cos(angle)*45, -Math.sin(angle) * 45);
+			mouth.translate(segment.point - mouth.position + offset);
+			
+			var r = angle;
+			if (r > 0 || r < 0){
+				mouth.rotate((r +Math.PI / 2)* 180 / Math.PI);
+				console.log(r);
+			}
+		}
+		//console.log(angle);
 	}
 	function buildEyes(){
 		//get normal
@@ -170,20 +172,21 @@
     			var y = view.size.height - (i-1)*seg_len;
 			//make particle : mass, x, y, z 
 			
-			var particle = physics.makeParticle(2.5, x, y, 0);
+			var particle = physics.makeParticle(10.5, x, y, 0);
 			
-			var support1 = physics.makeParticle(0.3, x, y - seg_len, 0);
-			var support2 = physics.makeParticle(0.3, x, y + seg_len, 0);
+			var support1 = physics.makeParticle(5.3, x, y - seg_len, 0);
+			var support2 = physics.makeParticle(5.3, x, y + seg_len, 0);
 			//make spring bet support1 and support2
 
 			if( i > 0){
 				var prev_support = support1_points[i-1];
 				var prev_particle = particles[i-1];
-				
-				physics.makeSpring(particle, prev_support, 0.02, 0.48, 0);
-				physics.makeSpring(prev_particle, support2, 0.02, 0.7, 0);
+				//spring length = 0.12 is also cool
+				//damping 0.48, 0.7
+				physics.makeSpring(particle, prev_support, 0.02, 0.8, 0);
+				physics.makeSpring(prev_particle, support2, 0.02, 1.7, 0);
 
-				springs.push(physics.makeSpring(particle, prev_particle, 0.1, 0.1, seg_len));
+				springs.push(physics.makeSpring(particle, prev_particle, 0.1, 0.8, seg_len));
 				
 			}//end of if
 
@@ -222,7 +225,8 @@
 
 	}
 	function setPositions(){
-		e = 0.66;
+		//e = 0.66;
+		e = 1.3;
 		mouse_pos.x += (targetMousePos.x - mouse_pos.x) * e;
   		mouse_pos.y += (targetMousePos.y - mouse_pos.y) * e;
 
