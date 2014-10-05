@@ -55,6 +55,7 @@
 	buildMouth();
 	ear_left = initEars();
 	ear_right = ear_left;
+	buildEars();
 
 	setInterval(function() {
   		physics.gravity.x = Math.sin(Date.now()/4000)*0.5
