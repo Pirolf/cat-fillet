@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<script type="text/javascript" src="lib/paper-full.js"></script>
+	<script type="text/javascript" src="lib/traer.js"></script>
+	<script type="text/paperscript"  canvas="paper_canvas">
+	var num_points = 6;
+	var seg_len = getSegmentLength();
+	var max_force = 10;
+	var FRAME_DELAY = 10;
+
+	var canvas = document.getElementById('paper_canvas');
+	var ctx = canvas.getContext('2d');
+	ctx.fillStyle = 'black';
+
+	var restDrag = 1.2;
+	var physics = new ParticleSystem(+0.34, -3, 0, restDrag);
+
+	var cat_group;
+	var paths = [];
+	var springs = [];
+	var support1_points = [];
+	var support2_points = [];
+	var particles = [];
+	var particles_head = [];
+	var eye_left, eye_right;
+	var mouth;
+	var ear_left, ear_right;
+
+	var firstRun = false;
+	var left_clicked = false;
+	var mouse_pos = view.center / 2;
+	var targetMousePos = new Point(view.size.width/2, view.size.height-seg_len);
+
+	var pathBody = new Path();
+	var pathHead = new Path();
+	var thickness = 150;
+	
+
+	pathBody.style = {
+		strokeColor : "#5F566B",
+		strokeWidth : thickness,
+		strokeCap : "round",
+	};
+	paths.push(pathBody);
+
+	var eye_from_center = thickness / 5;
+	var eye_radius = thickness / 10;
+
+	cat_group = new Group(paths);
+
+	
+	buildBody();
+	buildEyes();
+	buildMouth();
+	ear_left = initEars();
+	ear_right = ear_left;
+	buildEars();
+
+	setInterval(function() {
+  		physics.gravity.x = Math.sin(Date.now()/4000)*0.5
+  		physics.gravity.y =  Math.sin(Date.now()/6000)*0.5 - 3
+  		
+  		setPositions();
+		
+  		//setHeadPositions();
+  		physics.tick(1.0);
+	}, 1000/60);
+
+	function onFrame(event){
+		updatePaths();
+		buildEyes();
+		buildMouth();
+		buildEars();
+		pathBody.smooth();
+  		firstRun = false;
+	}
+
+	function onMouseDown(event){
+		left_clicked = true;
+	}
+	function onMouseDrag(event){
+		//path.add(event.point);
+	
+	}
+	function onMouseUp(event){
+		//left_clicked = false;
+	}
+	function onMouseMove(event){
+		//event.delta
+		//if(!left_clicked) return;
+		//mouse_pos = event.point;
+		var a = Math.atan2(event.point.y - view.size.height, event.point.x - view.size.width/2);
+		targetMousePos.x = view.size.width/2 + Math.cos(a) * seg_len*3;
+  		targetMousePos.y = view.size.height + Math.sin(a) * seg_len;
+		
+	}
+	//TODO
+	function onResize(event){
+		document.getElementById('paper_canvas').height++;
+		  document.getElementById('paper_canvas').width++;
+		  segmentLength = getSegmentLength();
+		  particles[0].position.x = view.size.width/2;
+		  particles[0].position.y = view.size.height + segmentLength;
+		  targetMousePos.x = view.size.width/2;
+		  targetMousePos.y = view.size.height - segmentLength;
+		  for (var i = 0; i < springs.length; i++) {
+		    springs[i].length = segmentLength;
+		  }
+	}
+	function to_rad(ang){
+		return ang * Math.PI / 180;
+	}
+	function to_ang(rad){
+		return rad * 180 / Math.PI;
+	}
+	function initEars(){
+		var ear = new Path();
+		//ear.strokeColor = '#403533';
+		ear.strokeColor = pathBody.strokeColor;
+		ear.fillColor = '#D55866';
+		ear.add(new Point(40, 90));
+		ear.add(new Point(60, 35));
+		ear.add(new Point(80, 90));
+
+		ear.closed = true;
+		pathBody.addChild(ear);
+		ear.smooth();
+		ear.strokeWidth = 12;
+		ear.translate(new Point(500, 500));
+		ear.scale(1.2);
+		ear.blendMode = "destination-over";
+		return ear;
+	}
+	function buildEars(){
+		var last_particle = particles[num_points-1];
+		var last_seg = pathBody.segments[num_points-1];
+		var body_rad = last_seg.angle + Math.PI / 2; //radians
+		var ear_angle = 45; //relative to body
+		var left_ang = ear_angle + to_ang(body_rad);
+		var right_ang = to_ang( to_rad(ear_angle) +body_rad - Math.PI/2);
+
+		var le_x = last_particle.position.x - pathBody.strokeWidth / 2 * Math.cos(to_rad(left_ang));
+		var le_y = last_particle.position.y - pathBody.strokeWidth / 2 * Math.sin(to_rad(left_ang));
+
+		var re_x = last_particle.position.x + pathBody.strokeWidth / 2 * Math.cos(to_rad(right_ang));
+		var re_y = last_particle.position.y + pathBody.strokeWidth / 2 * Math.sin(to_rad(right_ang));
+
+		
+
+		var left_ear_mid = new Point(le_x, le_y);
+		var right_ear_mid = new Point(re_x, re_y);
+
+		ear_left.remove();
+		ear_left = initEars();
+		ear_right.remove();
+		ear_right = initEars();
+
+		ear_left.translate (left_ear_mid  - ear_left.position);
+		ear_left.rotate(-30 + to_ang(body_rad));
+
+		ear_right.translate (right_ear_mid  - ear_right.position);
+		ear_right.rotate(30 + to_ang(body_rad));
+	}
+	function buildMouth(){
+		var mouth_half_width = 40;
+		var segment = pathBody.segments[num_points - 1];
+		var angle = segment.angle ;
+
+		var p1 = new Point(200, 200);
+		var p2 = new Point(242, 205);
+		var p3 = new Point(284, 200);
+
+		var handle_out1 = new Point(-7, 42);
+		var handle_in1 = new Point(0,42);
+		var handle_out2 = new Point(0,42);
+		var handle_in2 = new Point(7,42);
+		var seg1 = new Segment(p1, null, handle_out1);
+		var seg2 = new Segment(p2, handle_in1, null);
+		var seg3 = new Segment(p2, null, handle_out2);
+		var seg4 = new Segment(p3, handle_in2, null);
+
+		if(mouth){
+			mouth.remove();
+		}
+		mouth = new Path();
+		mouth.add(seg1, seg2, seg3, seg4);
+
+		//mouth.scale(pathBody.strokeWidth / 150);
+
+		mouth.strokeWidth = 5;
+		mouth.strokeColor = "#D49F90";
+		mouth.strokeCap = "round";
+
+		if(mouth){
+			var offset = new Point(-Math.cos(angle)*45, -Math.sin(angle) * 45);
+			mouth.translate(segment.point - mouth.position + offset);
+			
+			var r = angle;
+			if (r > 0 || r < 0){
+				mouth.rotate((r +Math.PI / 2)* 180 / Math.PI);
+			}
+		}
+	}
+	function buildEyes(){
+		var segment = pathBody.segments[num_points - 1];
+		var angle = segment.angle + Math.PI/2;
+		var left_x = segment.point.x - Math.cos(angle) * eye_from_center ;
+		var left_y = segment.point.y - Math.sin(angle) * eye_from_center ;
+
+		var right_x = segment.point.x + Math.cos(angle) * eye_from_center ;
+		var right_y =  segment.point.y + Math.sin(angle) * eye_from_center ;
+		if(!eye_left){
+			eye_left = new Shape.Circle(new Point(left_x, left_y), eye_radius);
+			eye_right = new Shape.Circle(new Point(right_x, right_y), eye_radius);	
+		}else{
+			
+			eye_left.remove();
+			eye_right.remove();
+			eye_left = new Shape.Circle(new Point(left_x, left_y), eye_radius);
+			eye_right = new Shape.Circle(new Point(right_x, right_y), eye_radius);
+		}
+		
+		eye_left.strokeColor = '#939E98';
+		eye_left.fillColor = '#97C4B3';
+		eye_right.strokeColor = '#939E98';
+		eye_right.fillColor = '#97C4B3';
+
+	}
+	function buildBody(){
+		
+		for (var i = 0; i < num_points; i++){
+			var x = view.size.width / 2;
+    			var y = view.size.height - (i-1)*seg_len;
+			//make particle : mass, x, y, z 
+			
+			var particle = physics.makeParticle(10.5, x, y, 0);
+			
+			var support1 = physics.makeParticle(5.3, x, y - seg_len, 0);
+			var support2 = physics.makeParticle(5.3, x, y + seg_len, 0);
+			//make spring bet support1 and support2
+
+			if( i > 0){
+				var prev_support = support1_points[i-1];
+				var prev_particle = particles[i-1];
+				//spring length = 0.12 is also cool
+				//damping 0.48, 0.7
+				physics.makeSpring(particle, prev_support, 0.02, 0.8, 0);
+				physics.makeSpring(prev_particle, support2, 0.02, 1.7, 0);
+
+				springs.push(physics.makeSpring(particle, prev_particle, 0.1, 0.8, seg_len));
+				
+			}//end of if
+
+			if (i < 2 ) {
+      				particle.makeFixed();
+    			}
+
+			support1.makeFixed();
+			support2.makeFixed();
+			
+			var point = new Point();
+    			pathBody.add(point);
+
+			particles.push(particle);
+			support1_points.push(support1);
+			support2_points.push(support2);
+			
+		}
+		//end of for
+	}
+
+	function forceMagnitude(force){
+		return Math.sqrt(force.lengthSquared);
+	}
+	function getSegmentLength() {
+  		return view.size.height/num_points * 0.7;
+	}
+	function setPositions(){
+		//e = 0.66;
+		e = 1.3;
+		mouse_pos.x += (targetMousePos.x - mouse_pos.x) * e;
+  		mouse_pos.y += (targetMousePos.y - mouse_pos.y) * e;
+
+  		particles[1].position.x = mouse_pos.x;
+  		particles[1].position.y = mouse_pos.y;
+
+		for(var i = 1; i < num_points; i++){
+			var prev_particle = particles[i-1];
+			var particle = particles[i];
+
+			var force = forceMagnitude(particle.force);
+			//angle between particle and previous particle
+			var angle = Math.atan2(particle.position.y - prev_particle.position.y, particle.position.x - prev_particle.position.x);
+			//set support positions
+			support1_points[i].position.x = prev_particle.position.x + Math.cos(angle - i*0.015) * seg_len;
+			support1_points[i].position.y = prev_particle.position.y + Math.sin(angle  - i*0.015) * seg_len;
+
+			support2_points[i].position.x = particle.position.x - Math.cos(angle) * seg_len;
+			support2_points[i].position.y = particle.position.y - Math.sin(angle) * seg_len;
+
+			if(force > max_force){
+				particle.force.scale(force / max_force);
+			}
+			pathBody.segments[i].angle = angle;
+		}
+	}
+	function updatePaths(){
+
+		for (var i = 0; i < num_points; i++) {
+
+			var curParticle = particles[i];
+			var prevParticle = particles[i-1];
+			var angle = pathBody.segments[i].angle + Math.PI/2;
+
+			pathBody.segments[i].point.x = curParticle.position.x;
+			pathBody.segments[i].point.y = curParticle.position.y;
+
+		}
+	}
+	</script>
+</head>
+<body>
+	<canvas id="paper_canvas" resize>
+	</canvas>
+</body>
+</html>
